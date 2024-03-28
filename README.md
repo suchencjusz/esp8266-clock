@@ -16,3 +16,5 @@ Libraries
 - adafruit/Adafruit Si7021 Library
 - bblanchon/ArduinoJson
 - adafruit/Adafruit BusIO
+
+![image](https://raw.githubusercontent.com/suchencjusz/esp8266-clock/main/img/clock.jpg)
