@@ -14,16 +14,21 @@
 #include "Adafruit_Si7021.h"
 #include "SSD1306Wire.h" // legacy: #include "SSD1306.h"
 
-const char *ssid = "XXXXXX";
-const char *password = "";
-
 // const char *weekDays[] = {"Niedziela", "Poniedzialek", "Wtorek", "Sroda", "Czwartek", "Piatek", "Sobota"};
 const char *weekDays[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+const char *weekDaysShort[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
 
-const String AIRLY_URL = "https://airapi.airly.eu/v2/measurements/installation?installationId=XXXXXXXX";
-const String AIRLY_SECRET = "XXXXXXXXXXXXXXXXXXXX";
-const String GITHUB_URL = "https://api.github.com/repos/XXXXXXXXXX/YYYYYYYYYY/commits/main";
-const String GITHUB_TOKEN = "Bearer XXXXXXXXXXXXXXXXXXXXX";
+const int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+const char *months[] = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+
+const char *ssid = "";
+const char *password = "";
+
+const String AIRLY_URL = "https://airapi.airly.eu/v2/mea";
+const String AIRLY_SECRET = "";
+const String GITHUB_URL = "https://api.github.com/repos/charcoalsGames/projectNovelae/commits/main";
+const String GITHUB_TOKEN = "Bearer ";
 
 const time_t timezone_offset = 3600;
 
@@ -44,16 +49,14 @@ void airQualityGetCallback();
 void timeCheckCallback();
 void temperateureInGetCallback();
 void githubRepoGetCallback();
-// void weatherCastCallback();
 
 Task screenOneUpdateTask(50, TASK_FOREVER, &screenOneUpdateCallback);
 Task screenTwoUpdateTask(150, TASK_FOREVER, &screenTwoUpdateCallback);
 
-Task airQualityGetTask(15 * 60 * 1000, TASK_FOREVER, &airQualityGetCallback);
+// Task airQualityGetTask(15 * 60 * 1000, TASK_FOREVER, &airQualityGetCallback);
 Task timeCheckTask(10 * 60 * 1000, TASK_FOREVER, &timeCheckCallback);
 Task temperateureInGetTask(60 * 1000, TASK_FOREVER, &temperateureInGetCallback);
 Task githubRepoGetTask(5 * 60 * 1000, TASK_FOREVER, &githubRepoGetCallback);
-// Task weatherCastTask(30 * 60 * 1000, TASK_FOREVER, &weatherCastCallback);
 
 Scheduler runner;
 #pragma endregion
@@ -151,9 +154,8 @@ void setup()
 
   runner.addTask(timeCheckTask);
   runner.addTask(temperateureInGetTask);
-  runner.addTask(airQualityGetTask);
+  // runner.addTask(airQualityGetTask);
   runner.addTask(githubRepoGetTask);
-  // runner.addTask(weatherCastTask);
 
   // Enable the tasks
   screenOneUpdateTask.enable();
@@ -161,9 +163,8 @@ void setup()
 
   timeCheckTask.enable();
   temperateureInGetTask.enable();
-  airQualityGetTask.enable();
+  // airQualityGetTask.enable();
   githubRepoGetTask.enable();
-  // weatherCastTask.enable();
 
   Serial.println("Setup done");
   Serial.println("Setup done");
@@ -185,7 +186,7 @@ void temperateureInGetCallback()
 
 void airQualityGetCallback()
 {
-  client.setInsecure(); // todo: fix for https 
+  client.setInsecure(); // todo: fix for https
 
   http.useHTTP10(true);
   http.begin(client, AIRLY_URL);
@@ -367,40 +368,86 @@ void screenOneUpdateCallback()
   display.display();
 }
 
+int *getDateTimeFromUnixTime(unsigned long unixTime)
+{
+  static int dateTime[6];
+  unsigned long dayClock = unixTime % 86400;
+  unsigned long dayNo = unixTime / 86400;
+
+  dateTime[5] = dayClock % 60;          // second
+  dateTime[4] = (dayClock % 3600) / 60; // minute
+  dateTime[3] = dayClock / 3600;        // hour
+  dateTime[0] = 1970;                   // year
+
+  dayNo += 4;
+  while (true)
+  {
+    int daysInYear = (dateTime[0] % 4 == 0 && (dateTime[0] % 100 != 0 || dateTime[0] % 400 == 0)) ? 366 : 365;
+    if (dayNo >= daysInYear)
+      dayNo -= daysInYear;
+    else
+      break;
+    dateTime[0]++;
+  }
+
+  int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (dateTime[0] % 4 == 0 && (dateTime[0] % 100 != 0 || dateTime[0] % 400 == 0))
+    daysInMonth[1] = 29;
+
+  for (dateTime[1] = 0; dateTime[1] < 12; dateTime[1]++)
+  {
+    if (dayNo >= daysInMonth[dateTime[1]])
+      dayNo -= daysInMonth[dateTime[1]];
+    else
+      break;
+  }
+  dateTime[1];
+  dateTime[2] = dayNo + 1;
+
+  return dateTime;
+}
+
+void generateCalendar(int firstDay, int daysInMonth, int month, int year)
+{
+  // Adjust firstDay so that 0 represents Monday
+  firstDay = (firstDay == 0) ? 6 : firstDay - 1;
+
+  int day = 1;
+  int x = 0;
+  int y = 0;
+  int dayOfWeek = firstDay;
+  int daysInWeek = 7;
+  int daysInMonthCounter = 0;
+
+  display2.setFont(ArialMT_Plain_10);
+
+  for (int i = 0; i < 6; i++)
+  {
+    for (int j = 0; j < 7; j++)
+    {
+      if (i == 0 && j < firstDay)
+      {
+        display2.drawString(j * 18, i * 10, " ");
+      }
+      else
+      {
+        if (day <= daysInMonth)
+        {
+          display2.drawString(j * 18, i * 10, String(day));
+          day++;
+        }
+      }
+    }
+  }
+}
+
 void screenTwoUpdateCallback()
 {
   display2.clear();
 
   display2.setFont(ArialMT_Plain_10);
 
-  String pm1Text = String(airQuality.pm1) + " PM1";
-  display2.drawString(0, 0, pm1Text);
-
-  String pm25Text = String(airQuality.pm25) + " PM2.5";
-  display2.drawString(0, 10, pm25Text);
-
-  String pm10Text = String(airQuality.pm10) + " PM10";
-  display2.drawString(0, 20, pm10Text);
-
-  String pressureText = String(airQuality.pressure) + " hPa";
-  display2.drawString(0, 30, pressureText);
-
-  String humidityText = String(airQuality.humidity) + " %";
-  display2.drawString(0, 40, humidityText);
-
-  String temperatureText = String(airQuality.temperature) + " C";
-  display2.drawString(0, 50, temperatureText);
-
-  // DISPLAY AIRLY_CAQITEXT ON RIGHT SIDE OF SCREEN CENTERED
-  display2.setFont(ArialMT_Plain_24);
-
-  String airly_caqiText = String(int(airQuality.airly_caqi));
-
-  int16_t airly_caqiTextWidth = display2.getStringWidth(airly_caqiText);
-  int16_t airly_caqiTextHeight = 24; 
-  int16_t airly_caqiCenterX = (display2.getWidth() - airly_caqiTextWidth) / 2 + 32;
-  int16_t airly_caqiCenterY = (display2.getHeight() - airly_caqiTextHeight) / 2;
-  display2.drawString(airly_caqiCenterX, airly_caqiCenterY, airly_caqiText);
+  generateCalendar(2, 31, 3, 2024);
 
   display2.display();
 }
